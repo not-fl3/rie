@@ -7,6 +7,7 @@ use tempdir::TempDir;
 type ExecutionResult = String;
 type CompilationError = String;
 
+#[derive(Copy, Clone)]
 enum LineType {
     Value,
     Expression,
@@ -15,6 +16,8 @@ enum LineType {
 struct InternalFunction {
     lines_count: i32,
     body: String,
+    buffer: Option<String>,
+    typ: LineType,
 }
 
 fn format_line(line: &str, line_type: LineType) -> String {
@@ -33,24 +36,63 @@ impl InternalFunction {
     fn new() -> InternalFunction {
         InternalFunction {
             lines_count: 0,
-            body: "".to_string(),
+            body: String::new(),
+            buffer: None,
+            typ: LineType::Value,
         }
     }
 
-    fn append_line(&self, line: &str, line_type: LineType) -> InternalFunction {
-        InternalFunction {
-            lines_count: self.lines_count + 1,
-            body: self.body.clone() + "\n" + &format_line(line, line_type) +
-                "\ncurrent_line += 1;\n",
+    fn clear_buf(mut self) -> InternalFunction {
+        self.buffer = None;
+        self
+    }
+
+    fn match_line_type<'a>(&self, line: &'a str) -> (LineType, &'a str) {
+        match self.buffer {
+            Some(_) => (self.typ, line),
+            None => {
+                if let Some(':') = line.chars().next() {
+                    (LineType::Value, &line[1..])
+                } else {
+                    (LineType::Expression, line)
+                }
+            }
         }
     }
 
-    fn filecontents(&self) -> String {
+    fn append_line(&self, line: &str) -> InternalFunction {
+        let lines = self.buffer.clone().unwrap_or(String::new());
+        let (typ, line) = self.match_line_type(line);
+
+        if let Some('.') = line.chars().last() {
+            println!("Waiting for more...");
+            InternalFunction {
+                lines_count: self.lines_count,
+                body: self.body.clone(),
+                buffer: Some(lines + &line[0..line.len() - 1] + "\n"),
+                typ: typ,
+            }
+        } else {
+            InternalFunction {
+                lines_count: self.lines_count + 1,
+                body: self.body.clone() + "\n" + &format_line((lines + line).as_str(), typ) +
+                    "\ncurrent_line += 1;\n",
+                buffer: None,
+                typ: typ,
+            }
+        }
+    }
+
+    fn file_contents(&self) -> String {
         format!(
             "fn main() {{ let lines_count = {}; let mut current_line = 0; {} }}",
             self.lines_count,
             self.body
         )
+    }
+
+    fn buffer_contents(&self) -> String {
+        self.buffer.clone().unwrap_or(String::new())
     }
 
     fn try_execute(&self) -> Result<ExecutionResult, CompilationError> {
@@ -62,7 +104,7 @@ impl InternalFunction {
         let out_file_path = dir.path().join("tmp_binary");
         let mut file = File::create(&file_path).unwrap();
 
-        write!(&mut file, "{}", self.filecontents()).unwrap();
+        write!(&mut file, "{}", self.file_contents()).unwrap();
 
         let output = Command::new("rustc")
             .arg(&file_path)
@@ -94,15 +136,19 @@ fn main() {
         InternalFunction::new(),
         |func, line| {
             let line = line.unwrap();
-            let (line, line_type) = match line.chars().next().unwrap() {
-                ':' => (line[1..].to_string(), LineType::Value),
-                '%' => {
-                    println!("{}", func.filecontents());
-                    return func;
-                }
-                _ => (line.clone(), LineType::Expression),
-            };
-            let newfunc = func.append_line(&line, line_type);
+            if line == "%" {
+                print!(
+                    "/** File **/\n{}\n/** Buffer **/\n{}",
+                    func.file_contents(),
+                    func.buffer_contents()
+                );
+                return func;
+            }
+            let newfunc = func.append_line(&line);
+
+            if let Some(_) = newfunc.buffer {
+                return newfunc;
+            }
 
             match newfunc.try_execute() {
                 Ok(result) => {
@@ -111,7 +157,7 @@ fn main() {
                 }
                 Err(error) => {
                     println!("ERR {}", error);
-                    func
+                    func.clear_buf()
                 }
             }
         },
