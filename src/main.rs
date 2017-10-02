@@ -62,7 +62,7 @@ impl InternalFunction {
             let stderr = String::from_utf8(output.stderr).unwrap();
 
             return Err(format!(
-                "stdout: {}\n, stderr: {}\n, errorcode: {:?}",
+                "stdout: {}\nstderr: {}\nerrorcode: {:?}",
                 stdout,
                 stderr,
                 output.status
@@ -85,7 +85,7 @@ impl InternalFunction {
             let stderr = String::from_utf8(output.stderr).unwrap();
 
             return Err(format!(
-                "stdout: {}\n, stderr: {}\n, errorcode: {:?}",
+                "stdout: {}\nstderr: {}\nerrorcode: {:?}",
                 stdout,
                 stderr,
                 output.status
