@@ -1,6 +1,8 @@
-extern crate tempfile;
+extern crate tempdir;
 
 use std::process::Command;
+
+use tempdir::TempDir;
 
 type ExecutionResult = String;
 type CompilationError = String;
@@ -15,14 +17,13 @@ struct InternalFunction {
     body: String,
 }
 
-fn format_line(line : &str, line_type: LineType) -> String  {
+fn format_line(line: &str, line_type: LineType) -> String {
     match line_type {
-        LineType::Value =>  {
-            format!("if current_line == lines_count - 1 {{ println!(\"{{:?}}\", {{ {} }}); }}\n", line)
-        },
-        LineType::Expression => {
-            format!("{};\n", line)
-        }
+        LineType::Value => format!(
+            "if current_line == lines_count - 1 {{ println!(\"{{:?}}\", {{ {} }}); }}\n",
+            line
+        ),
+        LineType::Expression => format!("{};\n", line),
     }
 }
 
@@ -37,19 +38,19 @@ impl InternalFunction {
     fn append_line(&self, line: &str, line_type: LineType) -> InternalFunction {
         InternalFunction {
             lines_count: self.lines_count + 1,
-            body: self.body.clone() + "\n" + &format_line(line, line_type) + "\ncurrent_line += 1;\n",
+            body: self.body.clone() + "\n" + &format_line(line, line_type)
+                + "\ncurrent_line += 1;\n",
         }
     }
 
     fn try_execute(&self) -> Result<ExecutionResult, CompilationError> {
         use std::io::Write;
+        use std::fs::File;
 
-        let mut file = tempfile::NamedTempFileOptions::new()
-            .prefix("tmp")
-            .suffix(".rs")
-            .rand_bytes(5)
-            .create()
-            .unwrap();
+        let dir = TempDir::new("rustci").unwrap();
+        let file_path = dir.path().join("tmp.rs");
+        let out_file_path = dir.path().join("tmp_binary");
+        let mut file = File::create(&file_path).unwrap();
 
         write!(
             &mut file,
@@ -58,13 +59,12 @@ impl InternalFunction {
             self.body
         ).unwrap();
 
-        println!(
-            "fn main() {{ let lines_count = {}; let mut current_line = 0; {} }}",
-            self.lines_count,
-            self.body
-        );
-
-        let output = Command::new("rustc").arg(&file.path()).output().unwrap();
+        let output = Command::new("rustc")
+            .arg(&file_path)
+            .arg("-o")
+            .arg(&out_file_path)
+            .output()
+            .unwrap();
 
         if output.status.success() == false {
             let stdout = String::from_utf8(output.stdout).unwrap();
@@ -73,11 +73,7 @@ impl InternalFunction {
             return Err(format!("stdout: {}, stderr: {}", stdout, stderr));
         }
 
-        let output = Command::new(format!(
-            "./{}",
-            file.path().file_stem().unwrap().to_str().unwrap()
-        )).output()
-            .unwrap();
+        let output = Command::new(out_file_path).output().unwrap();
 
         Ok((String::from_utf8(output.stdout).unwrap()))
     }
@@ -95,10 +91,8 @@ fn main() {
         .fold(InternalFunction::new(), |func, line| {
             let line = line.unwrap();
             let (line, line_type) = match line.chars().next().unwrap() {
-                ':' => {
-                    (line[2..].to_string(), LineType::Value)
-                },
-                _ => (line.clone(), LineType::Expression)
+                ':' => (line[2..].to_string(), LineType::Value),
+                _ => (line.clone(), LineType::Expression),
             };
             let newfunc = func.append_line(&line, line_type);
 

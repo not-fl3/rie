@@ -4,4 +4,4 @@ version = "0.1.0"
 authors = ["fedor <fedor>"]
 
 [dependencies]
-tempfile = "2.2.0"
+tempdir = "0.3"
