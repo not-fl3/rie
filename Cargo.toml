@@ -1,0 +1,7 @@
+[package]
+name = "rustci"
+version = "0.1.0"
+authors = ["fedor <fedor>"]
+
+[dependencies]
+tempfile = "2.2.0"
