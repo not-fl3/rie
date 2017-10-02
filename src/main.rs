@@ -1,8 +1,11 @@
+extern crate rustyline;
 extern crate tempdir;
 
 use std::process::Command;
 
 use tempdir::TempDir;
+use rustyline::error::ReadlineError;
+use rustyline::Editor;
 
 type ExecutionResult = String;
 type CompilationError = String;
@@ -19,10 +22,7 @@ struct InternalFunction {
 
 fn format_line(line: &str, line_type: LineType) -> String {
     match line_type {
-        LineType::Value => format!(
-            include_str!("../templates/repl_print_value.rs"),
-            line
-        ),
+        LineType::Value => format!(include_str!("../templates/repl_print_value.rs"), line),
         LineType::Expression => format!("{};\n", line),
     }
 }
@@ -38,8 +38,8 @@ impl InternalFunction {
     fn append_line(&self, line: &str, line_type: LineType) -> InternalFunction {
         InternalFunction {
             lines_count: self.lines_count + 1,
-            body: self.body.clone() + "\n" + &format_line(line, line_type) +
-                "\ncurrent_line += 1;\n",
+            body: self.body.clone() + "\n" + &format_line(line, line_type)
+                + "\ncurrent_line += 1;\n",
         }
     }
 
@@ -82,36 +82,59 @@ impl InternalFunction {
     }
 }
 
-fn main() {
-    use std::io;
-    use std::io::prelude::*;
+struct Repl {
+    function : InternalFunction
+}
 
-    let stdin = io::stdin();
-
-    stdin.lock().lines().fold(
-        InternalFunction::new(),
-        |func, line| {
-            let line = line.unwrap();
-            let (line, line_type) = match line.chars().next().unwrap() {
-                ':' => (line[1..].to_string(), LineType::Value),
-                '%' => {
-                    println!("{}", func.filecontents());
-                    return func;
-                }
-                _ => (line.clone(), LineType::Expression),
-            };
-            let newfunc = func.append_line(&line, line_type);
-
-            match newfunc.try_execute() {
-                Ok(result) => {
-                    println!("= {}", result);
-                    newfunc
-                }
-                Err(error) => {
-                    println!("ERR {}", error);
-                    func
-                }
+impl Repl {
+    pub fn process_line(&mut self, line : &str) {
+        let (line, line_type) = match line.chars().next().unwrap() {
+            ':' => (line[1..].to_string(), LineType::Value),
+            '%' => {
+                println!("{}", self.function.filecontents());
+                return;
             }
-        },
-    );
+            _ => (line.to_string(), LineType::Expression),
+        };
+        let newfunc = self.function.append_line(&line, line_type);
+
+        match newfunc.try_execute() {
+            Ok(result) => {
+                println!("= {}", result);
+                self.function = newfunc;
+            }
+            Err(error) => {
+                println!("ERR {}", error);
+            }
+        }
+
+    }
+}
+
+fn main() {
+    let mut repl = Repl { function : InternalFunction::new() };
+    let mut rl = Editor::<()>::new();
+
+    loop {
+        let readline = rl.readline(">> ");
+
+        match readline {
+            Ok(line) => {
+                rl.add_history_entry(&line);
+                repl.process_line(&line);
+            },
+            Err(ReadlineError::Interrupted) => {
+                println!("CTRL-C");
+                break
+            },
+            Err(ReadlineError::Eof) => {
+                println!("CTRL-D");
+                break
+            },
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break
+            }
+        }
+    }
 }
