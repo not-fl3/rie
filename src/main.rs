@@ -1,8 +1,11 @@
+extern crate rustyline;
 extern crate tempdir;
 
 use std::process::Command;
 
 use tempdir::TempDir;
+use rustyline::error::ReadlineError;
+use rustyline::Editor;
 
 type ExecutionResult = String;
 type CompilationError = String;
@@ -22,12 +25,7 @@ struct InternalFunction {
 
 fn format_line(line: &str, line_type: LineType) -> String {
     match line_type {
-        LineType::Value => {
-            format!(
-                "if current_line == lines_count - 1 {{ println!(\"{{:?}}\", {{ {} }}); }}\n",
-                line
-            )
-        }
+        LineType::Value => format!(include_str!("../templates/repl_print_value.rs"), line),
         LineType::Expression => format!("{};\n", line),
     }
 }
@@ -42,9 +40,8 @@ impl InternalFunction {
         }
     }
 
-    fn clear_buf(mut self) -> InternalFunction {
-        self.buffer = None;
-        self
+    fn clear_buf(&mut self) {
+        self.buffer = None
     }
 
     fn match_line_type<'a>(&self, line: &'a str) -> (LineType, &'a str) {
@@ -85,7 +82,7 @@ impl InternalFunction {
 
     fn file_contents(&self) -> String {
         format!(
-            "fn main() {{ let lines_count = {}; let mut current_line = 0; {} }}",
+            include_str!("../templates/repl_main.rs"),
             self.lines_count,
             self.body
         )
@@ -126,40 +123,64 @@ impl InternalFunction {
     }
 }
 
+struct Repl {
+    function: InternalFunction,
+}
+
+impl Repl {
+    pub fn process_line(&mut self, line: &str) {
+        if line == "%" {
+            print!(
+                "/** File **/\n{}\n/** Buffer **/\n{}",
+                self.function.file_contents(),
+                self.function.buffer_contents()
+            );
+            return;
+        }
+        let newfunc = self.function.append_line(&line);
+
+        if let Some(_) = newfunc.buffer {
+            self.function = newfunc;
+            return;
+        }
+
+        match newfunc.try_execute() {
+            Ok(result) => {
+                println!("= {}", result);
+                self.function = newfunc
+            }
+            Err(error) => {
+                println!("ERR {}", error);
+                self.function.clear_buf()
+            }
+        }
+    }
+}
+
 fn main() {
-    use std::io;
-    use std::io::prelude::*;
+    let mut repl = Repl { function: InternalFunction::new() };
+    let mut rl = Editor::<()>::new();
 
-    let stdin = io::stdin();
+    loop {
+        let readline = rl.readline(">> ");
 
-    stdin.lock().lines().fold(
-        InternalFunction::new(),
-        |func, line| {
-            let line = line.unwrap();
-            if line == "%" {
-                print!(
-                    "/** File **/\n{}\n/** Buffer **/\n{}",
-                    func.file_contents(),
-                    func.buffer_contents()
-                );
-                return func;
+        match readline {
+            Ok(line) => {
+                rl.add_history_entry(&line);
+                repl.process_line(&line);
             }
-            let newfunc = func.append_line(&line);
-
-            if let Some(_) = newfunc.buffer {
-                return newfunc;
+            Err(ReadlineError::Interrupted) => {
+                println!("CTRL-C");
+                break;
             }
-
-            match newfunc.try_execute() {
-                Ok(result) => {
-                    println!("= {}", result);
-                    newfunc
-                }
-                Err(error) => {
-                    println!("ERR {}", error);
-                    func.clear_buf()
-                }
+            Err(ReadlineError::Eof) => {
+                println!("CTRL-D");
+                break;
             }
-        },
-    );
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
+            }
+        }
+    }
 }
