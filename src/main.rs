@@ -19,10 +19,12 @@ struct InternalFunction {
 
 fn format_line(line: &str, line_type: LineType) -> String {
     match line_type {
-        LineType::Value => format!(
-            "if current_line == lines_count - 1 {{ println!(\"{{:?}}\", {{ {} }}); }}\n",
-            line
-        ),
+        LineType::Value => {
+            format!(
+                "if current_line == lines_count - 1 {{ println!(\"{{:?}}\", {{ {} }}); }}\n",
+                line
+            )
+        }
         LineType::Expression => format!("{};\n", line),
     }
 }
@@ -38,9 +40,17 @@ impl InternalFunction {
     fn append_line(&self, line: &str, line_type: LineType) -> InternalFunction {
         InternalFunction {
             lines_count: self.lines_count + 1,
-            body: self.body.clone() + "\n" + &format_line(line, line_type)
-                + "\ncurrent_line += 1;\n",
+            body: self.body.clone() + "\n" + &format_line(line, line_type) +
+                "\ncurrent_line += 1;\n",
         }
+    }
+
+    fn filecontents(&self) -> String {
+        format!(
+            "fn main() {{ let lines_count = {}; let mut current_line = 0; {} }}",
+            self.lines_count,
+            self.body
+        )
     }
 
     fn try_execute(&self) -> Result<ExecutionResult, CompilationError> {
@@ -52,12 +62,7 @@ impl InternalFunction {
         let out_file_path = dir.path().join("tmp_binary");
         let mut file = File::create(&file_path).unwrap();
 
-        write!(
-            &mut file,
-            "fn main() {{ let lines_count = {}; let mut current_line = 0; {} }}",
-            self.lines_count,
-            self.body
-        ).unwrap();
+        write!(&mut file, "{}", self.filecontents()).unwrap();
 
         let output = Command::new("rustc")
             .arg(&file_path)
@@ -85,13 +90,16 @@ fn main() {
 
     let stdin = io::stdin();
 
-    stdin
-        .lock()
-        .lines()
-        .fold(InternalFunction::new(), |func, line| {
+    stdin.lock().lines().fold(
+        InternalFunction::new(),
+        |func, line| {
             let line = line.unwrap();
             let (line, line_type) = match line.chars().next().unwrap() {
-                ':' => (line[2..].to_string(), LineType::Value),
+                ':' => (line[1..].to_string(), LineType::Value),
+                '%' => {
+                    println!("{}", func.filecontents());
+                    return func;
+                }
                 _ => (line.clone(), LineType::Expression),
             };
             let newfunc = func.append_line(&line, line_type);
@@ -106,5 +114,6 @@ fn main() {
                     func
                 }
             }
-        });
+        },
+    );
 }
