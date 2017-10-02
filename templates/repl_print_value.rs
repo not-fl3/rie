@@ -1,3 +1,3 @@
-if current_line == lines_count - 1 {{
-    println!("{{:?}}", {{ {} }});
-}}
+if current_line == lines_count {{
+        println!("{{:?}}", {{ {} }});
+    }}

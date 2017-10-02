@@ -41,13 +41,13 @@ impl InternalFunction {
     fn append_line(&self, command: ReplCommand) -> InternalFunction {
         InternalFunction {
             lines_count: self.lines_count + 1,
-            body: self.body.clone() + "\n" + &format_line(command) + "\ncurrent_line += 1;\n",
+            body: self.body.clone() + "\n" + "    current_line += 1;\n    " + &format_line(command),
         }
     }
 
     fn file_contents(&self) -> String {
         format!(
-            include_str!("../templates/repl_main.rs"),
+            include_str!("../templates/repl_main.txt"),
             self.lines_count,
             self.body
         )
