@@ -20,7 +20,7 @@ struct InternalFunction {
 fn format_line(line: &str, line_type: LineType) -> String {
     match line_type {
         LineType::Value => format!(
-            "if current_line == lines_count - 1 {{ println!(\"{{:?}}\", {{ {} }}); }}\n",
+            include_str!("../templates/repl_print_value.rs"),
             line
         ),
         LineType::Expression => format!("{};\n", line),
@@ -54,7 +54,7 @@ impl InternalFunction {
 
         write!(
             &mut file,
-            "fn main() {{ let lines_count = {}; let mut current_line = 0; {} }}",
+            include_str!("../templates/repl_main.rs"),
             self.lines_count,
             self.body
         ).unwrap();
