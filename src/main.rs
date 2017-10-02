@@ -16,7 +16,6 @@ type CompilationError = String;
 struct InternalFunction {
     lines_count: i32,
     body: String,
-    buffer: Option<String>,
 }
 
 fn format_line(command: ReplCommand) -> String {
@@ -36,7 +35,6 @@ impl InternalFunction {
         InternalFunction {
             lines_count: 0,
             body: String::new(),
-            buffer: None,
         }
     }
 
@@ -44,7 +42,6 @@ impl InternalFunction {
         InternalFunction {
             lines_count: self.lines_count + 1,
             body: self.body.clone() + "\n" + &format_line(command) + "\ncurrent_line += 1;\n",
-            buffer: None,
         }
     }
 
@@ -54,10 +51,6 @@ impl InternalFunction {
             self.lines_count,
             self.body
         )
-    }
-
-    fn buffer_contents(&self) -> String {
-        self.buffer.clone().unwrap_or(String::new())
     }
 
     fn try_execute(&self) -> Result<ExecutionResult, CompilationError> {
@@ -100,9 +93,8 @@ impl Repl {
         match command {
             ReplCommand::PrintCode => {
                 print!(
-                    "/** File **/\n{}\n/** Buffer **/\n{}",
+                    "/** File **/\n{}",
                     self.function.file_contents(),
-                    self.function.buffer_contents()
                 );
                 true
             }
@@ -126,9 +118,7 @@ impl Repl {
 }
 
 fn main() {
-    let mut repl = Repl {
-        function: InternalFunction::new(),
-    };
+    let mut repl = Repl { function: InternalFunction::new() };
     let mut input = Input::new();
 
     loop {
