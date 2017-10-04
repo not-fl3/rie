@@ -27,5 +27,13 @@ RIE is REPL-like interactive code editor.
 0 fn main() {
 1     let x = 2;
 2 }
->> 
+>> {{
+>>> fn foo() {
+>>>   println!("Hello world");
+>>> }
+>>> }}
+= 
+>> :foo()
+= Hello world
+()
 ```
