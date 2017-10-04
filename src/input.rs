@@ -44,8 +44,8 @@ impl Input {
                 }
             } else {
                 match (
-                    line.chars().nth(0).map_or(None, |c| Some(c)),
-                    line.chars().nth(1).map_or(None, |c| Some(c)),
+                    line.chars().nth(0).map_or(None, Some),
+                    line.chars().nth(1).map_or(None, Some),
                 ) {
                     (Some('%'), Some('d')) => {
                         let mut splitted = line.split(' ');
@@ -78,14 +78,10 @@ impl Input {
                     }
                 }
             },
-            Err(ReadlineError::Interrupted) => {
-                return ReplCommand::Exit;
-            }
-            Err(ReadlineError::Eof) => {
-                return ReplCommand::Exit;
-            }
+            Err(ReadlineError::Interrupted) |
+            Err(ReadlineError::Eof) |
             Err(_) => {
-                return ReplCommand::Exit;
+                ReplCommand::Exit
             }
         }
     }

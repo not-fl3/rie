@@ -57,21 +57,22 @@ impl InternalFunction {
             .output()
             .unwrap();
 
-        if output.status.success() == false {
+        if output.status.success() {
+			Ok(CompiledFile {
+				_temp_dir: dir,
+				binary_path: out_file_path,
+			})
+		} else {
             let stdout = String::from_utf8(output.stdout).unwrap();
             let stderr = String::from_utf8(output.stderr).unwrap();
 
-            return Err(format!(
+            Err(format!(
                 "stdout: {}\nstderr: {}\nerrorcode: {:?}",
                 stdout,
                 stderr,
                 output.status
-            ));
+            ))
         }
-        return Ok(CompiledFile {
-            _temp_dir: dir,
-            binary_path: out_file_path,
-        });
     }
 
     fn try_execute(
@@ -80,18 +81,18 @@ impl InternalFunction {
     ) -> Result<ExecutionResult, CompilationError> {
         let output = Command::new(compiled_file.binary_path).output().unwrap();
 
-        if output.status.success() == false {
+        if output.status.success() {
+            Ok(String::from_utf8(output.stdout).unwrap())
+        } else {
             let stdout = String::from_utf8(output.stdout).unwrap();
             let stderr = String::from_utf8(output.stderr).unwrap();
 
-            return Err(format!(
+            Err(format!(
                 "stdout: {}\nstderr: {}\nerrorcode: {:?}",
                 stdout,
                 stderr,
                 output.status
-            ));
-        } else {
-            Ok((String::from_utf8(output.stdout).unwrap()))
+            ))
         }
     }
 
@@ -171,10 +172,7 @@ fn main() {
     };
     let mut input = Input::new();
 
-    loop {
-        let command = input.read();
-        if repl.process_command(command) == false {
-            break;
-        }
+    while !repl.process_command(input.read()) {
+		// not quit yet
     }
 }
