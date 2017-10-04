@@ -1,7 +1,8 @@
 [package]
-name = "rustci"
+name = "rie"
 version = "0.1.0"
 authors = ["Fedor Logachev <not.fl3@gmail.com>", "gendx"]
+license = "MIT"
 
 [dependencies]
 tempdir = "0.3"

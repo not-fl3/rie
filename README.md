@@ -4,7 +4,10 @@ RIE is rust interactive editor.
 
 REPL-like expirience based on interactive source code editing. 
 
-```
+``` 
+# cargo install rie
+# rie
+
 >> :2 * 2
 = 4
 
