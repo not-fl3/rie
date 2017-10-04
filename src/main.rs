@@ -20,20 +20,20 @@ struct CompiledFile {
 }
 
 struct InternalFunction {
-    body: String,
+    body: Vec<String>,
 }
 
 impl InternalFunction {
     fn new() -> InternalFunction {
-        InternalFunction {
-            body: String::new(),
-        }
+        InternalFunction { body: vec![] }
     }
 
     fn file_contents(&self) -> String {
         format!(
-            "fn main() {{ {} }}",
+            "fn main() {{ {}}}",
             self.body
+                .iter()
+                .fold(String::new(), |acc, str| { acc + str })
         )
     }
 
@@ -94,6 +94,12 @@ impl InternalFunction {
             Ok((String::from_utf8(output.stdout).unwrap()))
         }
     }
+
+    fn append_line(&self, line: String) -> InternalFunction {
+        let mut body = self.body.clone();
+        body.push(line);
+        InternalFunction { body: body }
+    }
 }
 
 struct Repl {
@@ -104,15 +110,31 @@ impl Repl {
     pub fn process_command(&mut self, command: ReplCommand) -> bool {
         match command {
             ReplCommand::PrintCode => {
-                print!("/** File **/\n{}", self.function.file_contents(),);
+                let begin = "fn main() {\n".to_owned();
+                let end = "}".to_owned();
+                let lines = ::std::iter::once(begin)
+                    .chain(self.function.body.iter().map(|s| "    ".to_owned() + s))
+                    .chain(::std::iter::once(end));
+
+                println!(
+                    "{}",
+                    lines.enumerate().fold(
+                        String::new(),
+                        |acc, (i, str)| acc + &format!("{} {}", i, str)
+                    )
+                );
                 true
+            }
+            ReplCommand::RemoveLines(line) => {
+                if line >= 1 {
+                    self.function.body.truncate((line - 1) as usize);
+                }
+                self.process_command(ReplCommand::PrintCode)
             }
             ReplCommand::Nothing => true,
             ReplCommand::Exit => false,
             ReplCommand::AddExpression(line) => {
-                let newfunc =  InternalFunction {
-                    body: self.function.body.clone() + "\n" + &format!("{};\n", line),
-                };
+                let newfunc = self.function.append_line(format!("{};\n", line));
 
                 match newfunc
                     .try_compile()
@@ -129,9 +151,8 @@ impl Repl {
                 true
             }
             ReplCommand::PrintValue(line) => {
-                let newfunc =  InternalFunction {
-                    body: self.function.body.clone() + "\n" + &format!("println!(\"{{:?}}\", {{ {} }});", line),
-                };
+                let newfunc = self.function
+                    .append_line(format!("println!(\"{{:?}}\", {{ {} }});", line));
 
                 let _ = newfunc
                     .try_compile()
