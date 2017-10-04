@@ -1,9 +1,6 @@
 # rie
 
-RIE is rust interactive editor. 
-
-REPL-like expirience based on interactive source code editing. 
-
+RIE is REPL-like interactive code editor.
 ``` 
 # cargo install rie
 # rie
