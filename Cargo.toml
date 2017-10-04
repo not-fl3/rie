@@ -3,6 +3,9 @@ name = "rie"
 version = "0.1.0"
 authors = ["Fedor Logachev <not.fl3@gmail.com>", "gendx"]
 license = "MIT"
+keywords = ["repl"]
+description = "REPL like interactive code editor"
+repository = "https://github.com/not-fl3/rie"
 
 [dependencies]
 tempdir = "0.3"
